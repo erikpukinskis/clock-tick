@@ -2,8 +2,8 @@ var library = require("module-library")(require)
 
 library.define(
   "tick",
-  ["web-host", "web-element", "basic-styles", "browser-bridge"],
-  function(host, element, basicStyles, BrowserBridge) {
+  ["web-host", "web-element", "basic-styles", "browser-bridge", "tell-the-universe"],
+  function(host, element, basicStyles, BrowserBridge, tellTheUniverse) {
 
     var ticks = 0
 
@@ -11,7 +11,7 @@ library.define(
     basicStyles.addTo(bridge)
 
     var page = element.template.container(
-      ".page",
+      "form.page",
       element.style({
         "max-width": "240px",
         "min-height": "320px",
@@ -24,25 +24,54 @@ library.define(
 
     bridge.addToHead(element.stylesheet(page))
 
-    var button = element("a.button", "Tick", {href: "/tick"})
 
-    var start = page(
-      element("h1", "You are "+ticks+" ticks old."),
-      button
+    var whatShouldHappen = [
+      element("h1", "What should happen?"),
+      element(
+        "input",
+        {name: "statement", type: "text"}
+      ),
+      element("p", element(
+        "input",
+        {type: "submit", value: 
+        "I have told it"}
+      )),
+    ]
+    var ask = page(whatShouldHappen
     )
+    ask.addAttributes({
+      method: "POST", action: "/statements"})
 
-    var ask = page(
-      element("h1", "What should happen?"))
+    // all statements will be
 
-    host.onRequest(function(getBridge) {
-      var bridge = getBridge()
-      bridge.addToHead(element.stylesheet(page))
-      basicStyles.addTo(bridge)
-      bridge.send(start)
-    })
+    // all stories will be
 
     host.onSite(function (site) {
-      site.addRoute("get", "/tick", bridge.requestHandler(ask))
+
+      site.addRoute("get", "/tick", function(request, response) {
+        ticks++
+        bridge.forResponse(response).send(ask)
+      })
+
+      site.addRoute("get", "/again", function(request, response) {
+        var tickAgain = page(
+          element("h1", "You are "+ticks+" ticks old."),
+          element("a.button", "Tick", {href: "/tick"})
+        )
+        bridge.forResponse(response).send(tickAgain)
+      })
+
+      var universe = tellTheUniverse.called("statements").withNames({
+        "statement": "statement"
+      })
+
+      site.addRoute("post", "/statements", function(request, response) {
+
+        universe.do("statement", "text", request.body.statement)
+
+        response.redirect("/again")
+      })
+
     })
 
 
