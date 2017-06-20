@@ -1,6 +1,6 @@
 {
   "name": "clock-tick",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Advance in hypertime by one tick",
   "main": "clock-tick.js",
   "dependencies": {
