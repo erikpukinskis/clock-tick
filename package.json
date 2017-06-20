@@ -1,0 +1,17 @@
+{
+  "name": "clock-tick",
+  "version": "0.0.0",
+  "description": "Advance in hypertime by one tick",
+  "main": "clock-tick.js",
+  "dependencies": {
+    "module-library": "*",
+    "web-host": "*",
+    "web-element": "*",
+    "basic-styles": "*",
+    "browser-bridge": "*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/erikpukinskis/clock-tick.git"
+  }
+}
