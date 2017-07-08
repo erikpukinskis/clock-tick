@@ -1,5 +1,20 @@
 var library = require("module-library")(require)
 
+
+var ticks = [
+  "run",
+  "cook dinner",
+  "do a pomodoro",
+]
+
+var notDo = [
+  "be mean on the internet"
+]
+
+
+
+
+
 library.define(
   "tick",
   ["web-host", "web-element", "basic-styles", "browser-bridge", "tell-the-universe"],
@@ -10,19 +25,22 @@ library.define(
     var bridge = new BrowserBridge()
     basicStyles.addTo(bridge)
 
-    var page = element.template.container(
-      "form.page",
-      element.style({
-        "max-width": "240px",
-        "min-height": "320px",
-        "padding-top": "30px",
-        "box-sizing": "border-box",
-        "text-align": "center",
-        "background": "#eee",
-      })
-    )
 
-    bridge.addToHead(element.stylesheet(page))
+    var whatAreYouDoing = [
+      element("h1", "What are you doing?"),
+      element(
+        "input",
+        {name: "log", type: "text"}
+      ),
+      element("p", element(
+        "input",
+        {type: "submit", value: 
+        "It is being done"}
+      )),
+    ]
+
+    var log = element("form.lil-page", whatAreYouDoing, {
+      method: "POST", action: "/log"})
 
 
     var whatShouldHappen = [
@@ -37,25 +55,84 @@ library.define(
         "I have told it"}
       )),
     ]
-    var ask = page(whatShouldHappen
-    )
-    ask.addAttributes({
-      method: "POST", action: "/statements"})
+
+    var startSomething = element("form.lil-page", whatShouldHappen, {method: "POST", action: "/statements"})
 
     // all statements will be
 
     // all stories will be
 
+    var noticationBridge = bridge.copy()
+
+    var subscribe = noticationBridge.defineFunction(function requestNotificationPrivileges() {
+
+      Notification.requestPermission(sayHey)
+
+      function sayHey(permission) {
+        if (permission != "granted") { return }
+
+        var notification = new Notification("Time to log! Click here now")
+
+         notification.onclick = function() { 
+          window.location.href = "http://localhost:1413/log"
+        }
+      }
+    })
+
+
+
+    var log = element(".lil-page", [
+      element("p", "I recommend you start logging what you're up to."),
+      element("p", element("input", {type: "text", placeholder: "What are you doing right now?"})),
+      element("button", "Log it"),
+      " ",
+      element("button", "No thanks"),
+    ])
+
+
+
+    var subscriptionRequest = element(".lil-page", [
+      element("p", "Logging works best if you do it regularly. If you enable notifications, I can help you remember to."),
+      element("button", "Sign up for logging", {onclick: subscribe.evalable()})
+    ])
+
+
+
+    var waves = element(".lil-page", [
+      element("p", "You usually drink coffee around this time. If you do it right now, you'll increase your waviness 50pts"),
+      element("button", "I made coffee!"),
+      " ",
+      element("button", "I don't want coffee"),
+    ])
+
+
+
+    var talkToSomeone = element(".lil-page", [
+      element("p", "Talk to me!"),
+      element("input.thing-to-say", {type: "text"}),
+      element("button", {onclick: sayIt.withArgs(".thing-to-say").evalable()}, "Say it")
+    ])
+
+
     host.onSite(function (site) {
+
+      site.addRoute("get", "/waves", bridge.sendPage(waves))
+
+      site.addRoute("get", "/hi", bridge.sendPage(talkToSomeone))
+
+      site.addRoute("get", "/log", bridge.sendPage(log))
+
+      site.addRoute("get", "/notify", noticationBridge.sendPage(subscriptionRequest))
 
       site.addRoute("get", "/tick", function(request, response) {
         ticks++
-        bridge.forResponse(response).send(ask)
+        bridge.forResponse(response).send(startSomething)
       })
 
       site.addRoute("get", "/again", function(request, response) {
-        var tickAgain = page(
+        var tickAgain = element(".lil-page", 
           element("h1", "You are "+ticks+" ticks old."),
+          // element("p", "WAVINESS 25pts"),
           element("a.button", "Tick", {href: "/tick"})
         )
         bridge.forResponse(response).send(tickAgain)
@@ -64,6 +141,10 @@ library.define(
       var universe = tellTheUniverse.called("statements").withNames({
         "statement": "statement"
       })
+
+      // tellTheUniverse.loadFromSimperium(function() {
+      //   console.log("// log has been played back")
+      // })
 
       site.addRoute("post", "/statements", function(request, response) {
 
