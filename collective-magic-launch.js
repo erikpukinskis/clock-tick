@@ -52,13 +52,20 @@ library.using(
 
     var bridge = new BrowserBridge()
     basicStyles.addTo(bridge)
-    var page = [
+
+    var assignment = [
       element("h1", "Here's a goal."),
       element("Make it so you can "+ticks[0])
     ]
     
+    var getWork = [
+      element("a.button", "Give me work"),
+    ]
+
     host.onSite(function(site) {
-      site.addRoute("get", "/hole", bridge.requestHandler(page))
+      site.addRoute("get", "/hole", bridge.requestHandler(assignment))
+
+      site.addRoute("get", "/give-me-work", bridge.requestHandler(getWork))
     })
 
   }
