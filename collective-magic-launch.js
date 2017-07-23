@@ -6,7 +6,7 @@ var clockTick = require(".")
 var library = require("module-library")(require)
 
 
-library.define("ticks", function() { return [
+library.define("tasks", function() { return [
   "tap give me work",
   "tap Take a photo",
   "tap Clock in and help",
@@ -47,23 +47,45 @@ library.define("ticks", function() { return [
 
 
 library.using(
-  ["web-host", "browser-bridge", "web-element", "bridge-module", "add-html", "ticks", "basic-styles"],
-  function(host, BrowserBridge, element, bridgeModule, addHtml, ticks, basicStyles) {
+  ["web-host", "browser-bridge", "web-element", "bridge-module", "add-html", "tasks", "basic-styles", "tell-the-universe"],
+  function(host, BrowserBridge, element, bridgeModule, addHtml, tasks, basicStyles, tellTheUniverse) {
+
+    var finishedTasks = []
+    var finishedCount = 0
 
     var bridge = new BrowserBridge()
     basicStyles.addTo(bridge)
 
-    var assignment = [
-      element("h1", "Here's a goal."),
-      element("Make it so you can "+ticks[0])
-    ]
+    var nextTaskId = 0
+
+    function giveAssignment(request, response) {
+
+      var page = element("form.lil-page", {method: "POST", action: "/finish"}, [
+        element("p", finishedCount+"/"+tasks.length+" til Collective Magic"),
+        element("h1", "Here's a goal."),
+        element("p", "Make it so you can "+tasks[nextTaskId]+"."),
+        element("input", {type: "hidden", name: "taskId", value: ""+nextTaskId}),
+        element("input", {type: "submit", value: "It is done."}),
+      ])        
+
+      bridge.forResponse(response).send(page.html())
+    }
+
     
     var getWork = [
       element("a.button", "Give me work"),
     ]
 
     host.onSite(function(site) {
-      site.addRoute("get", "/hole", bridge.requestHandler(assignment))
+      site.addRoute("get", "/hole", giveAssignment)
+
+      site.addRoute("post", "/finish", function(request, response) {
+        var id = request.body.taskId
+        finishedTasks[id] = true
+        finishedCount++
+        nextTaskId++
+        response.redirect("/hole")
+      })
 
       site.addRoute("get", "/give-me-work", bridge.requestHandler(getWork))
     })
