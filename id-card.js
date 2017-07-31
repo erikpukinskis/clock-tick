@@ -45,9 +45,8 @@ module.exports = library.export(
             picture.maxY = bounds.maxY
           }
 
-          var targetWidth = 70
           var widthUsed = picture.maxX - picture.minX
-          picture.scale = targetWidth/widthUsed
+          picture.scale = idCard.TARGET_WIDTH/widthUsed
           picture.offsetLeft = -Math.ceil(picture.minX)
           picture.offsetTop = -Math.ceil(picture.minY)
 
@@ -146,7 +145,7 @@ module.exports = library.export(
       element.stylesheet(idStyle, narrowPic)
     ])
 
-    return function(site, onAvatar) {
+    function idCard(site, onAvatar) {
       site.addRoute("post", "/avatars", function(request, response) {
         var name = request.body.name
         var id = request.body.characterId
@@ -156,6 +155,9 @@ module.exports = library.export(
       site.addRoute("get", "/id-card", bridge.requestHandler(page))
     }
 
+    idCard.TARGET_WIDTH = 70
+
+    return idCard
   }
 )
 

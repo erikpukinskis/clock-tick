@@ -91,6 +91,8 @@ library.using(
         return
       }
 
+      var myName = character.nameOf(meId)
+
       var swatches = bridge.defineSingleton("swatches",
         function swatches() { return {} }
       )
@@ -115,15 +117,37 @@ library.using(
 
       var percent = Math.round(finishedCount/tasks.length*100)+"%"
 
+      var avatarStyle = element.style(".avatar", {
+
+        "position": "absolute",
+        "top": "300px",
+        "left": "200px",
+
+        " .swatches": {
+        },
+
+        " .name": {
+          "position": "absolute",
+          "top": "-30px",
+          "width": idCard.TARGET_WIDTH+"px",
+          "text-align": "center",
+          "font-weight": "bold",
+        },
+      })
+
+
       var page = element("form.lil-page", {method: "POST", action: "/finish"}, [
         element("p", finishedCount+"/"+tasks.length+" til Collective Magic ("+percent+")"),
         element("h1", "Here's a goal."),
         element("p", "Make it so you can "+tasks[nextTaskId]+"."),
         element("input", {type: "hidden", name: "taskId", value: ""+nextTaskId}),
         element("input", {type: "submit", value: "It is done."}),
-        element(".swatches"),
+        element(".avatar", [
+          element(".swatches"),
+          element(".name", myName)
+        ]),
+        element.stylesheet(avatarStyle),
       ])        
-
 
       bridge.domReady(
         [swatches, bridgeModule(lib, "html-painting", bridge), bridgeModule(lib, "character", bridge), bridgeModule(lib, "tell-the-universe", bridge), meId],
@@ -137,19 +161,19 @@ library.using(
           characterUniverse.persistToLocalStorage()
           characterUniverse.load()
 
-          var character = character.get(meId)
+          var picture = character.getPicture(meId)
 
-          var transform = "scale("+character.scale+") translate("+character.offsetLeft+"px, "+character.offsetTop+"px)"
+          var transform = "scale("+picture.scale+") translate("+picture.offsetLeft+"px, "+picture.offsetTop+"px)"
 
           swatches.node = document.querySelector(".swatches")
           swatches.node.style.transform = transform 
 
 
-          if (!character.paintingId) {
+          if (!picture.paintingId) {
             throw new Error("No painting id")
           }
 
-          htmlPainting.playBackInto(character.paintingId, ".swatches")
+          htmlPainting.playBackInto(picture.paintingId, ".swatches")
         }
       )
 
