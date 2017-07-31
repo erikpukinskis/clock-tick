@@ -21,7 +21,7 @@ module.exports = library.export(
 
     character.getPicture = identifiable.getFrom(avatars, {description: "avatar"})
 
-    character.nameOf = identifiable.getFrom(names, {description: "character name"})
+    character.getName = identifiable.getFrom(names, {description: "character name"})
 
     return character
   }

@@ -55,9 +55,33 @@ library.define("tasks", function() { return [
 ]})
 
 
+library.define(
+  "work",
+  function() {
+      var sessionsByTaskId = {}
+      var currentAssignments = {}
+
+      var work = {
+        start: function(name, characterId, taskId, startTime) {
+          var session = {name: name, characterId: characterId, taskId: taskId, startTime: startTime}
+          var sessions = sessionsByTaskId[taskId]
+          if (!sessions) {
+            sessions = sessionsByTaskId[taskId] = []
+          }
+          sessions.push(session)
+        },
+        sessionsForTask: function(taskId) {
+          return sessionsByTaskId[taskId] || []
+        }
+    }
+
+    return work
+  }
+)
+
 library.using(
-  [library.ref(), "web-host", "browser-bridge", "web-element", "bridge-module", "add-html", "tasks", "basic-styles", "tell-the-universe", "./id-card", "./character"],
-  function(lib, host, BrowserBridge, element, bridgeModule, addHtml, tasks, basicStyles, aWildUniverseAppeared, idCard, character) {
+  [library.ref(), "web-host", "browser-bridge", "web-element", "bridge-module", "add-html", "tasks", "basic-styles", "tell-the-universe", "./id-card", "./character", "work"],
+  function(lib, host, BrowserBridge, element, bridgeModule, addHtml, tasks, basicStyles, aWildUniverseAppeared, idCard, character, work) {
 
     var finishedTasks = []
     var finishedCount = 0
@@ -91,7 +115,23 @@ library.using(
         return
       }
 
-      var myName = character.nameOf(meId)
+      var myName = character.getName(meId)
+
+      var workSessions = element(
+        "ul",
+        work.sessionsForTask(nextTaskId).map(renderSession)
+      )
+
+      function renderSession(session) {
+        var description = session.name+" has been helping for "+timeBetween(new Date(session.startTime), new Date())
+        return element("li", description)
+      }
+
+      function timeBetween(start, end) {
+        var seconds = (end - start)/1000
+        var minutes = Math.round(seconds/60)
+        return minutes+" minutes"
+      }
 
       var swatches = bridge.defineSingleton("swatches",
         function swatches() { return {} }
@@ -135,13 +175,32 @@ library.using(
         },
       })
 
+      function postButton(label, action, data) {
+        var form = element(
+          "form",
+          element.style({"display": "inline"}),
+          {method: "POST", action: action},[
+          element("input", {type: "submit", value: label}),
+        ])
 
-      var page = element("form.lil-page", {method: "POST", action: "/finish"}, [
+        if (data) {
+          for(var key in data) {
+            var field = element("input", {type: "hidden", name: key, value: data[key].toString()})
+            form.addChild(field)
+          }
+        }
+
+        return form
+      }
+
+      var page = element(".lil-page", [
         element("p", finishedCount+"/"+tasks.length+" til Collective Magic ("+percent+")"),
         element("h1", "Here's a goal."),
         element("p", "Make it so you can "+tasks[nextTaskId]+"."),
-        element("input", {type: "hidden", name: "taskId", value: ""+nextTaskId}),
-        element("input", {type: "submit", value: "It is done."}),
+        postButton("It is done.", "/finish", {taskId: nextTaskId}),
+        " ",
+        postButton("Clock in and help", "/work-session", {taskId: nextTaskId}),
+        workSessions,
         element(".avatar", [
           element(".swatches"),
           element(".name", myName)
@@ -192,9 +251,27 @@ library.using(
 
       site.addRoute("post", "/finish", function(request, response) {
         var id = request.body.taskId
+        if (!id) {
+          throw new Error("wtf")
+        }
         finishedTasks[id] = true
         finishedCount++
         nextTaskId++
+        response.redirect("/assignment")
+      })
+
+      var workLog = aWildUniverseAppeared("work", {
+          work: "work"})
+
+      site.addRoute("post", "/work-session", function(request, response) {
+        var taskId = request.body.taskId
+        var meId = request.cookies.characterId
+        var name = character.getName(meId)
+        var when = new Date().toString()
+        work.start(name, meId, taskId, when)
+
+        workLog.do("work.start", name, meId, taskId, when)
+
         response.redirect("/assignment")
       })
 
