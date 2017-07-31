@@ -15,10 +15,10 @@ var notDo = [
 
 
 
-library.define(
-  "tick",
-  ["web-host", "web-element", "basic-styles", "browser-bridge", "tell-the-universe"],
-  function(host, element, basicStyles, BrowserBridge, tellTheUniverse) {
+module.exports = library.export(
+  "clock-tick",
+  ["web-host", "web-element", "basic-styles", "browser-bridge", "tell-the-universe", "./ask-form"],
+  function(host, element, basicStyles, BrowserBridge, aWildUniverseAppeared, askForm) {
 
     var ticks = 0
 
@@ -44,7 +44,7 @@ library.define(
 
 
     var whatShouldHappen = [
-      element("h1", "What should happen?"),
+      element("h1", "What needs to happen?"),
       element(
         "input",
         {name: "statement", type: "text"}
@@ -55,6 +55,32 @@ library.define(
         "I have told it"}
       )),
     ]
+
+
+    var isItDone = element.template(
+      "form.lil-page", {
+      method: "POST",
+      action: "/doneness"},[
+      element(
+        "input", {
+        type: "submit",
+        value: "It's done!"}),
+      element(
+        "input", {
+        type: "submit",
+        value: "Not yet"}),],
+      function(task) {
+        this.children.unshift(element("p", task+"... is it done?"))
+      }
+    )
+
+
+// what needs to happen
+// is it done?
+
+// what needs to happen first
+// can you do this?
+
 
     var startSomething = element("form.lil-page", whatShouldHappen, {method: "POST", action: "/statements"})
 
@@ -107,22 +133,75 @@ library.define(
 
 
 
-    var talkToSomeone = element(".lil-page", [
-      element("p", "Talk to me!"),
-      element("input.thing-to-say", {type: "text"}),
-      element("button", {onclick: sayIt.withArgs(".thing-to-say").evalable()}, "Say it")
-    ])
+
+
 
 
     host.onSite(function (site) {
 
-      site.addRoute("get", "/waves", bridge.sendPage(waves))
+      site.addRoute("get", "/waves", bridge.requestHandler(waves))
 
-      site.addRoute("get", "/hi", bridge.sendPage(talkToSomeone))
 
-      site.addRoute("get", "/log", bridge.sendPage(log))
 
-      site.addRoute("get", "/notify", noticationBridge.sendPage(subscriptionRequest))
+
+
+      var talkToSomeone = askForm("Talk to me!", "statement", "/statements", "Say it",
+        function(statement, response) {
+          sendToListener(statement)
+          response.send("ok") 
+        }
+      )
+
+      site.addRoute("get", "/talk", bridge.requestHandler(talkToSomeone))
+
+      var listen = element("form", {method: "post", action: "/hear"}, [
+        element("input", {type: "submit", value: "Listen"}),
+      ])
+
+      var listenAgain = element.template.container("form", {name: "hear", method: "post", action: "/hear"})
+
+      var listeningBridge = new BrowserBridge()
+
+      listeningBridge.domReady(function listenAgain() {
+        document.forms.hear.submit()
+      })
+
+      site.addRoute("get", "/listen", bridge.requestHandler(listen))
+
+
+      var waitingForStatement
+
+      function sendToListener(statement) {
+        var page = listenAgain(statement)
+
+        console.log("sending listening bridge!")
+
+        listeningBridge.forResponse(waitingForStatement).send(page)
+      }
+
+      site.addRoute(
+        "post",
+        "/hear",
+        function(request, response) {
+          response.setTimeout(120000, timeRequestOut.bind(response))
+
+          waitingForStatement = response
+        }
+      )
+
+      function timeRequestOut() {
+        console.log('Request has timed out.')
+        this.send(408)
+      }
+
+
+
+
+      talkToSomeone.addRoute(site)
+
+      site.addRoute("get", "/log", bridge.requestHandler(log))
+
+      site.addRoute("get", "/notify", noticationBridge.requestHandler(subscriptionRequest))
 
       site.addRoute("get", "/tick", function(request, response) {
         ticks++
@@ -138,7 +217,7 @@ library.define(
         bridge.forResponse(response).send(tickAgain)
       })
 
-      var universe = tellTheUniverse.called("statements").withNames({
+      var universe = aWildUniverseAppeared("statements", {
         "statement": "statement"
       })
 
@@ -156,8 +235,11 @@ library.define(
     })
 
 
-    return {}
+    return function(ticks) {
+      console.log("\nHOT TICKS HERE!")
+      console.log("GOT YER HOT TICKS RIGHT HERE!\n-----------------------------")
+      console.log(ticks.join("\n")+"\n")
+    }
   }
 )
 
-library.get("tick")
