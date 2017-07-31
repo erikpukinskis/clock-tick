@@ -10,8 +10,12 @@
     "basic-styles": "*",
     "browser-bridge": "*",
     "tell-the-universe": "*",
-    "bridge-module": "*"
+    "bridge-module": "*",
+    "paint-on-picture": "*",
+    "html-painting": "*",
+    "add-html": "*"
   },
+  "nestedDependencies": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/erikpukinskis/clock-tick.git"

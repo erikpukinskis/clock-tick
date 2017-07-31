@@ -1,4 +1,4 @@
-var clockTick = require(".")
+
 
 // HERE YOU GO ERIK FUCKIN SQUEEZE THIS SHIT THROUGH A FUCKIN HOLE BITCH
 
@@ -7,8 +7,17 @@ var library = require("module-library")(require)
 
 
 library.define("tasks", function() { return [
-  "tap give me work",
-  "tap Take a photo",
+  "tap Give me work",
+  "tap Choose a picture",
+  "a picture appears",
+  "paint some swatches",
+  "type a name",
+  "tap Issue card",
+  "see avatar on id card",
+  "see your avatar next to the It is done button",
+  "see an assignment",
+  "see an avatar when you start the server again",
+  "see the name below the avatar",
   "tap Clock in and help",
   "see Erik is helping",
   "tap Clock out",
@@ -47,48 +56,148 @@ library.define("tasks", function() { return [
 
 
 library.using(
-  ["web-host", "browser-bridge", "web-element", "bridge-module", "add-html", "tasks", "basic-styles", "tell-the-universe"],
-  function(host, BrowserBridge, element, bridgeModule, addHtml, tasks, basicStyles, tellTheUniverse) {
+  [library.ref(), "web-host", "browser-bridge", "web-element", "bridge-module", "add-html", "tasks", "basic-styles", "tell-the-universe", "./id-card", "./character"],
+  function(lib, host, BrowserBridge, element, bridgeModule, addHtml, tasks, basicStyles, aWildUniverseAppeared, idCard, character) {
 
     var finishedTasks = []
     var finishedCount = 0
 
-    var bridge = new BrowserBridge()
-    basicStyles.addTo(bridge)
+    var baseBridge = new BrowserBridge()
+    basicStyles.addTo(baseBridge)
 
     var nextTaskId = 0
 
+    var characters = aWildUniverseAppeared("characters", {
+      character: "./character"
+    })
+
+    var s3Options = {
+      key: process.env.AWS_ACCESS_KEY_ID,
+      secret: process.env.AWS_SECRET_ACCESS_KEY,
+      bucket: process.env.S3_BUCKET_NAME,
+    }
+    characters.persistToS3(s3Options)
+    characters.load()
+
     function giveAssignment(request, response) {
 
+      var bridge = new BrowserBridge()
+      basicStyles.addTo(bridge)
+
+      var meId = request.cookies.characterId
+
+      if (!meId) {
+        response.redirect("/id-card")
+        return
+      }
+
+      var swatches = bridge.defineSingleton("swatches",
+        function swatches() { return {} }
+      )
+
+      var paintSwatch = bridge.defineFunction(
+        [swatches, bridgeModule(lib, "add-html", bridge), bridgeModule(lib, "web-element", bridge)],
+        function paintSwatch(swatches, addHtml, element, bounds, color) {
+
+
+          var div = element(element.style({
+            "position": "absolute",
+            "background": color,
+            "left": bounds.minX+"px",
+            "top": bounds.minY+"px",
+            "width": (bounds.maxX - bounds.minX)+"px",
+            "height": (bounds.maxY - bounds.minY)+"px",
+          }))
+
+          addHtml.inside(swatches.node, div.html())
+        }
+      )
+
+      var percent = Math.round(finishedCount/tasks.length*100)+"%"
+
       var page = element("form.lil-page", {method: "POST", action: "/finish"}, [
-        element("p", finishedCount+"/"+tasks.length+" til Collective Magic"),
+        element("p", finishedCount+"/"+tasks.length+" til Collective Magic ("+percent+")"),
         element("h1", "Here's a goal."),
         element("p", "Make it so you can "+tasks[nextTaskId]+"."),
         element("input", {type: "hidden", name: "taskId", value: ""+nextTaskId}),
         element("input", {type: "submit", value: "It is done."}),
+        element(".swatches"),
       ])        
 
-      bridge.forResponse(response).send(page.html())
+
+      bridge.domReady(
+        [swatches, bridgeModule(lib, "html-painting", bridge), bridgeModule(lib, "character", bridge), bridgeModule(lib, "tell-the-universe", bridge), meId],
+        function(swatches, htmlPainting, character, aWildUniverseAppeared, meId) {
+
+          var paintings = aWildUniverseAppeared("paintings", {htmlPainting: htmlPainting})
+          paintings.persistToLocalStorage()
+          paintings.load()
+
+          var characterUniverse = aWildUniverseAppeared("characters", {character: character})
+          characterUniverse.persistToLocalStorage()
+          characterUniverse.load()
+
+          var character = character.get(meId)
+
+          var transform = "scale("+character.scale+") translate("+character.offsetLeft+"px, "+character.offsetTop+"px)"
+
+          swatches.node = document.querySelector(".swatches")
+          swatches.node.style.transform = transform 
+
+
+          if (!character.paintingId) {
+            throw new Error("No painting id")
+          }
+
+          htmlPainting.playBackInto(character.paintingId, ".swatches")
+        }
+      )
+
+      var content = page.html()
+      bridge.forResponse(response).send(content)
     }
+
 
     
     var getWork = [
-      element("a.button", "Give me work"),
+      element("a.button", "Give me work", {href: "/assignment"}),
     ]
 
     host.onSite(function(site) {
-      site.addRoute("get", "/hole", giveAssignment)
+      site.addRoute("get", "/assignment", giveAssignment)
 
       site.addRoute("post", "/finish", function(request, response) {
         var id = request.body.taskId
         finishedTasks[id] = true
         finishedCount++
         nextTaskId++
-        response.redirect("/hole")
+        response.redirect("/assignment")
       })
 
-      site.addRoute("get", "/give-me-work", bridge.requestHandler(getWork))
+      site.addRoute("get", "/give-me-work", baseBridge.requestHandler(getWork))
+
+      idCard(site, onAvatar)
     })
+
+    var minutes = 60
+    var hours = 60*minutes
+    var days = 24*hours
+    var years = 365*days
+
+    function onAvatar(meId, name, response) {
+
+      character(meId, name)
+
+      characters.do("character", meId, name)
+
+      response.cookie(
+        "characterId",
+        meId,{
+        maxAge: 10*years,
+        httpOnly: true})
+
+      response.redirect("/assignment")
+    }
 
   }
 )
