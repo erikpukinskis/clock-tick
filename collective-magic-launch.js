@@ -22,12 +22,7 @@ library.define("tasks", function() { return [
   "see Erik is helping",
   "tap Clock out",
   "tap It's done",
-  "tap Take a photo",
-  "see the photo in an IMG",
-  "paint pixels",
-  "type Erik",
-  "tap New Creature",
-  "tap somewhere and creature moves",
+  "tap somewhere and a creature moves",
   "tap Issue House panel bond",
   "see Bond for sale: Issued by Erik",
   "click Buy Bond - $100",
@@ -59,16 +54,42 @@ library.define(
   "work",
   function() {
       var sessionsByTaskId = {}
-      var currentAssignments = {}
+      var sessionsByCharacterId = {}
+
+      function addToList(lists, id, newItem) {
+        var list = lists[id]
+        if (!list) {
+          list = lists[id] = []
+        }
+        list.push(newItem)
+      }
 
       var work = {
         start: function(name, characterId, taskId, startTime) {
           var session = {name: name, characterId: characterId, taskId: taskId, startTime: startTime}
-          var sessions = sessionsByTaskId[taskId]
-          if (!sessions) {
-            sessions = sessionsByTaskId[taskId] = []
+
+          addToList(sessionsByTaskId, taskId, session)
+          addToList(sessionsByCharacterId, characterId, session)
+        },
+        getCurrentAssignmentId: function(characterId) {
+          var sessions = sessionsByCharacterId[characterId]
+          if (!sessions) { return }
+          var session = sessions[sessions.length-1]
+          var hasStopped = !!session.stopTime
+          debugger
+          if (hasStopped) {
+            return
+          } else {
+           return session.taskId
           }
-          sessions.push(session)
+        },
+        stop: function(name, characterId, taskId, stopTime) {
+          var sessions = sessionsByCharacterId[characterId]
+          var session = sessions[sessions.length-1]
+          if (session.taskId != taskId) {
+            throw new Error("Trying to clock out of "+taskId+" but clocked into "+session.taskId)
+          }
+          session.stopTime = stopTime
         },
         sessionsForTask: function(taskId) {
           return sessionsByTaskId[taskId] || []
@@ -89,7 +110,8 @@ library.using(
     var baseBridge = new BrowserBridge()
     basicStyles.addTo(baseBridge)
 
-    var nextTaskId = 0
+    var nextTaskCounter = 0
+    var nextTaskId = "0"
 
     var characters = aWildUniverseAppeared("characters", {
       character: "./character"
@@ -100,8 +122,10 @@ library.using(
       secret: process.env.AWS_SECRET_ACCESS_KEY,
       bucket: process.env.S3_BUCKET_NAME,
     }
-    characters.persistToS3(s3Options)
-    characters.load()
+    // characters.persistToS3(s3Options)
+    // characters.load()
+    character("zuww", "Erik")
+    characters.do("character", "zuww", "Erik")
 
     function giveAssignment(request, response) {
 
@@ -117,18 +141,30 @@ library.using(
 
       var myName = character.getName(meId)
 
+      var currentAssignmentId = work.getCurrentAssignmentId(meId)
+      console.log("Assignment is", currentAssignmentId)
+
       var workSessions = element(
         "ul",
         work.sessionsForTask(nextTaskId).map(renderSession)
       )
 
       function renderSession(session) {
-        var description = session.name+" has been helping for "+timeBetween(new Date(session.startTime), new Date())
+        var transit = session.stopTime ? " helped" : " has been helping"
+
+        var description = session.name+transit+" for "+timeOf(session)
         return element("li", description)
       }
 
-      function timeBetween(start, end) {
-        var seconds = (end - start)/1000
+      function timeOf(session) {
+        var start = new Date(session.startTime)
+        if (session.stopTime) {
+          var end = new Date(session.stopTime)
+        } else {
+          var end = new Date()
+        }
+
+        var seconds = (end - start)/1000 + 20
         var minutes = Math.round(seconds/60)
         return minutes+" minutes"
       }
@@ -193,19 +229,33 @@ library.using(
         return form
       }
 
+      var iAmOnThis = currentAssignmentId == nextTaskId
+
+      if (iAmOnThis) {
+        var clockButton = postButton("Clock out", "/work-sessions/stop", {taskId: nextTaskId})
+
+      } else {
+        var clockButton = postButton("Clock in and help", "/work-sessions", {taskId: nextTaskId})
+      }
+
+      var ulStyle = element.style("ul", {
+        "padding-left": "1.3em",
+        "list-style-type": "cambodian",
+      })
+
       var page = element(".lil-page", [
         element("p", finishedCount+"/"+tasks.length+" til Collective Magic ("+percent+")"),
         element("h1", "Here's a goal."),
         element("p", "Make it so you can "+tasks[nextTaskId]+"."),
         postButton("It is done.", "/finish", {taskId: nextTaskId}),
         " ",
-        postButton("Clock in and help", "/work-session", {taskId: nextTaskId}),
+        clockButton,
         workSessions,
         element(".avatar", [
           element(".swatches"),
           element(".name", myName)
         ]),
-        element.stylesheet(avatarStyle),
+        element.stylesheet(avatarStyle, ulStyle),
       ])        
 
       bridge.domReady(
@@ -249,28 +299,54 @@ library.using(
     host.onSite(function(site) {
       site.addRoute("get", "/assignment", giveAssignment)
 
+      function clockOut(meId, taskId) {
+        var name = character.getName(meId)
+        var when = new Date().toString()
+        work.stop(name, meId, taskId, when)
+
+        workLog.do("work.stop", name, meId, taskId, when)
+      }
+
       site.addRoute("post", "/finish", function(request, response) {
-        var id = request.body.taskId
-        if (!id) {
+        var taskId = request.body.taskId
+        if (!taskId) {
           throw new Error("wtf")
         }
-        finishedTasks[id] = true
+        finishedTasks[taskId] = true
+        var meId = request.cookies.characterId
+        var isClockedIn = work.getCurrentAssignmentId(meId) == taskId
+
+        if (isClockedIn) {
+          clockOut(meId, taskId)
+        }
         finishedCount++
-        nextTaskId++
+        nextTaskCounter++
+        nextTaskId = nextTaskCounter.toString()
         response.redirect("/assignment")
       })
 
       var workLog = aWildUniverseAppeared("work", {
           work: "work"})
 
-      site.addRoute("post", "/work-session", function(request, response) {
+      site.addRoute("post", "/work-sessions", function(request, response) {
         var taskId = request.body.taskId
         var meId = request.cookies.characterId
         var name = character.getName(meId)
         var when = new Date().toString()
-        work.start(name, meId, taskId, when)
 
+        work.start(name, meId, taskId, when)
         workLog.do("work.start", name, meId, taskId, when)
+
+        response.redirect("/assignment")
+      })
+
+      site.addRoute("post", "/work-sessions/stop", function(request, response) {
+        var taskId = request.body.taskId
+        var meId = request.cookies.characterId
+
+        if (work.getCurrentAssignmentId(meId) == taskId) {
+          clockOut(meId, taskId)
+        }
 
         response.redirect("/assignment")
       })
